@@ -28,6 +28,10 @@ import numpy as np
 
 warnings.filterwarnings('ignore')
 
+# Import refactored modules
+from orchestrator.rules import RuleEngine
+from orchestrator.risk_budget import RiskBudgetCalculator
+
 # === Path Setup ===
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -75,6 +79,10 @@ class SystemOrchestrator:
         self.use_lagged = use_lagged
         self.verbose = verbose
         self.project_root = PROJECT_ROOT
+
+        # Refactored components
+        self._rule_engine = RuleEngine()
+        self._risk_calc = RiskBudgetCalculator()
 
         # 缓存
         self._structure_output = None
@@ -562,70 +570,12 @@ class SystemOrchestrator:
             return 'NORMAL', 'HOLD', reasons
 
     # =========================================================================
-    # Rule Engine v2.0 - 规则引擎升级
+    # Rule Engine v2.0 - Delegated to orchestrator.rules
     # =========================================================================
 
     def _get_fuel_state(self, fuel_score: float) -> str:
-        """将 FuelScore 映射为离散状态"""
-        from config import FUEL_STATE_THRESHOLDS
-        if fuel_score < FUEL_STATE_THRESHOLDS['LOW']:
-            return 'LOW'
-        elif fuel_score < FUEL_STATE_THRESHOLDS['NEUTRAL']:
-            return 'NEUTRAL'
-        elif fuel_score < FUEL_STATE_THRESHOLDS['HIGH']:
-            return 'HIGH'
-        else:
-            return 'EXTREME'
-
-    def _match_rule(
-        self,
-        rule: dict,
-        fuel_state: str,
-        crack_state: str,
-        trend_state: str,
-        trend_quality: str
-    ) -> bool:
-        """Check if a rule's conditions match the current states."""
-        conditions = rule.get('conditions', {})
-
-        # Check each condition type
-        if 'fuel_states' in conditions and fuel_state not in conditions['fuel_states']:
-            return False
-        if 'crack_states' in conditions and crack_state not in conditions['crack_states']:
-            return False
-        if 'trend_states' in conditions and trend_state not in conditions['trend_states']:
-            return False
-        if 'trend_qualities' in conditions and trend_quality not in conditions['trend_qualities']:
-            return False
-
-        return True
-
-    def _build_rationale(
-        self,
-        rule: dict,
-        fuel_state: str,
-        crack_state: str,
-        trend_state: str
-    ) -> str:
-        """Build human-readable rationale for triggered rule."""
-        rule_id = rule['id']
-        rationale_templates = {
-            'R1': f'市场极度承压(Trend={trend_state}) + 结构裂缝扩大(Crack={crack_state})',
-            'R2': f'结构已崩裂(Crack={crack_state})，Trend确认压力(Trend={trend_state})',
-            'R3': f'结构裂缝扩大(Crack={crack_state}) + 市场转坏(Trend={trend_state})',
-            'R4': f'高燃料存量(Fuel={fuel_state}) + 市场点火(Trend={trend_state})',
-            'R5': f'高燃料存量(Fuel={fuel_state})，但未点火(Crack={crack_state})',
-            'R6': f'结构出现早期裂纹(Crack={crack_state})，需要关注',
-            'R7': f'低燃料(Fuel={fuel_state}) + 稳定结构(Crack={crack_state}) + 平静市场(Trend={trend_state})',
-            'R8a': 'Trend数据不足，但Crack已崩裂',
-            'R8b': 'Trend数据不足，但Crack裂缝扩大',
-            'R8c': 'Trend数据不足，Crack出现早期裂纹',
-            'R8d': 'Trend数据不足，但Fuel极高',
-            'R8e': 'Trend数据不足，但Fuel较高',
-            'R8f': 'Trend数据不足，Fuel/Crack正常',
-            'R0': f'Fuel={fuel_state}, Crack={crack_state}, Trend={trend_state}',
-        }
-        return rationale_templates.get(rule_id, f'Rule {rule_id} triggered')
+        """将 FuelScore 映射为离散状态 (delegated to RuleEngine)"""
+        return self._rule_engine.get_fuel_state(fuel_score)
 
     def _apply_rules(
         self,
@@ -634,47 +584,8 @@ class SystemOrchestrator:
         trend_state: str,
         trend_quality: str
     ) -> Tuple[str, str, dict]:
-        """
-        规则引擎核心：声明式优先级规则
-
-        优先级: Crisis > Defensive > Cautious > Normal
-
-        Returns:
-            Tuple[system_state, action, triggered_rule]
-        """
-        from config import PRIORITY_RULES, FALLBACK_RULES, DEFAULT_RULE
-
-        # Check fallback first if trend quality is poor
-        if trend_quality in ['WEAK', 'NONE']:
-            for rule in FALLBACK_RULES:
-                if self._match_rule(rule, fuel_state, crack_state, trend_state, trend_quality):
-                    return rule['state'], rule['action'], {
-                        'rule_id': rule['id'],
-                        'name': rule['name'],
-                        'rationale': self._build_rationale(rule, fuel_state, crack_state, trend_state),
-                    }
-            # Fallback default
-            return 'NORMAL', 'HOLD', {
-                'rule_id': 'R8f',
-                'name': 'Fallback: Normal',
-                'rationale': self._build_rationale({'id': 'R8f'}, fuel_state, crack_state, trend_state),
-            }
-
-        # Check priority rules in order
-        for rule in PRIORITY_RULES:
-            if self._match_rule(rule, fuel_state, crack_state, trend_state, trend_quality):
-                return rule['state'], rule['action'], {
-                    'rule_id': rule['id'],
-                    'name': rule['name'],
-                    'rationale': self._build_rationale(rule, fuel_state, crack_state, trend_state),
-                }
-
-        # Default rule
-        return DEFAULT_RULE['state'], DEFAULT_RULE['action'], {
-            'rule_id': DEFAULT_RULE['id'],
-            'name': DEFAULT_RULE['name'],
-            'rationale': self._build_rationale(DEFAULT_RULE, fuel_state, crack_state, trend_state),
-        }
+        """Apply rules (delegated to RuleEngine)."""
+        return self._rule_engine.apply_rules(fuel_state, crack_state, trend_state, trend_quality)
 
     def _compute_risk_budget_v2(
         self,
@@ -684,43 +595,8 @@ class SystemOrchestrator:
         trend_state: str,
         trend_quality: str
     ) -> dict:
-        """
-        分层 Risk Budget 计算
-
-        公式: final = base × state_mult × crack_penalty × trend_penalty
-
-        - base: 由 Fuel 决定的长期上限
-        - state_mult: 系统状态对应的削减系数
-        - crack_penalty: Crack 状态的额外惩罚
-        - trend_penalty: Trend 状态的惩罚 (仅 OK/STRONG 时启用)
-        """
-        from config import STATE_MULTIPLIERS, CRACK_PENALTIES, TREND_PENALTIES
-
-        # Base (由 Fuel 决定长期上限)
-        base = np.clip(1.1 - 0.007 * fuel_score, 0.35, 1.15)
-
-        # State multiplier
-        state_mult = STATE_MULTIPLIERS.get(system_state, 1.0)
-
-        # Crack penalty
-        crack_penalty = CRACK_PENALTIES.get(crack_state, 1.0)
-
-        # Trend penalty (仅 OK/STRONG 时启用)
-        if trend_quality in ['OK', 'STRONG']:
-            trend_penalty = TREND_PENALTIES.get(trend_state, 1.0)
-        else:
-            trend_penalty = 1.0
-
-        # Final
-        final = np.clip(base * state_mult * crack_penalty * trend_penalty, 0.0, 1.15)
-
-        return {
-            'base_from_fuel': round(base, 3),
-            'state_multiplier': state_mult,
-            'crack_penalty': crack_penalty,
-            'trend_penalty': trend_penalty,
-            'final_risk_budget': round(final, 3),
-        }
+        """Compute risk budget (delegated to RiskBudgetCalculator)."""
+        return self._risk_calc.compute(fuel_score, system_state, crack_state, trend_state, trend_quality)
 
     def _get_top_contributors(self, layer_output: dict, layer_type: str) -> List[dict]:
         """获取某一层的 top 贡献因子"""

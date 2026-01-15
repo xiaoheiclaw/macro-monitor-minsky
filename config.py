@@ -57,16 +57,8 @@ FACTOR_FILES = {
     'V9': ('V9_cre_lending.csv', 'avg'),
 }
 
-# Factor direction: True = high value = high risk
-FACTOR_DIRECTION = {
-    'V1': True,   # ST Debt: high = risky
-    'V2': True,   # Uninsured Deposits: high = risky
-    'V4': False,  # ICR: LOW = risky (needs flip)
-    'V5': True,   # TDSP: high = risky
-    'V7': True,   # CAPE: high = risky
-    'V8': True,   # Margin Debt: high = risky
-    'V9': True,   # CRE Lending: high tightening = risky
-}
+# Note: Factor direction is now embedded in FACTOR_TRANSFORM['flip'] field
+# V4 has flip=True (low ICR = high risk)
 
 # Factor display names
 FACTOR_NAMES = {
@@ -237,20 +229,7 @@ TREND_PENALTIES = {
     'CRITICAL': 0.70,
 }
 
-# Hysteresis 配置 (防抖，降级比升级更严格)
-HYSTERESIS_CONFIG = {
-    'trend_downgrade_days': 10,     # Trend 需连续 N 天回到低状态才能降级
-    'crack_downgrade_months': 2,    # Crack 需连续 N 月低于阈值才能降级
-    'fuel_downgrade_quarters': 2,   # Fuel 需连续 N 季度下降才能降级
-}
-
-# ============== Cache Configuration ==============
-
-CACHE_CONFIG = {
-    'streamlit_ttl': 3600,       # 1 hour cache for computed data
-    'history_ttl': 3600,          # 1 hour cache for history data
-    'enable_incremental': True,   # Enable incremental data updates
-}
+# Note: Hysteresis and Cache configs removed (not implemented yet)
 
 # ============== Rule Engine v2.0 - Declarative Rules ==============
 
