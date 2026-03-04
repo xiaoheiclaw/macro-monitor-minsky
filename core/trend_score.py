@@ -24,15 +24,13 @@ Usage:
     history = trend.compute_history('2020-01-01', '2024-12-31')
 """
 
-import os
-import sys
+import logging
 from typing import Dict, Optional
 
 import pandas as pd
 import numpy as np
 
-# Add paths
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+logger = logging.getLogger(__name__)
 
 from config import TREND_CONFIG, TREND_DATA_DIR
 
@@ -62,16 +60,7 @@ class TrendScore:
     def _get_trend_score_impl(self):
         """Get the underlying TrendScore implementation."""
         if self._trend_score is None:
-            # Add trend_score package to path
-            trend_package_dir = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                'trend'
-            )
-            if trend_package_dir not in sys.path:
-                sys.path.insert(0, trend_package_dir)
-
-            # Import as package
-            from trend_score.trend_score import TrendScore as TrendScoreImpl
+            from trend.trend_score.trend_score import TrendScore as TrendScoreImpl
             self._trend_score = TrendScoreImpl(data_dir=TREND_DATA_DIR)
 
         return self._trend_score

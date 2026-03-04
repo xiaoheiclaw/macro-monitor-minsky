@@ -17,17 +17,13 @@ Usage:
     fuel_df = apply_transforms(factor_df)
 """
 
-import os
-import sys
+import logging
 from typing import Dict
 
 import pandas as pd
 import numpy as np
 
-# Ensure parent directory is in path for relative imports
-_parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _parent_dir not in sys.path:
-    sys.path.insert(0, _parent_dir)
+logger = logging.getLogger(__name__)
 
 from config import FACTOR_TRANSFORM
 
@@ -257,9 +253,7 @@ def apply_transforms(
         config = FACTOR_TRANSFORM
 
     if verbose:
-        print("\n" + "=" * 60)
-        print("Applying Factor-Specific Transforms")
-        print("=" * 60)
+        logger.info("Applying Factor-Specific Transforms")
 
     result = pd.DataFrame(index=factor_df.index)
 
@@ -267,13 +261,13 @@ def apply_transforms(
         # Only process factors in config
         if col not in config:
             if verbose:
-                print(f"  {col}: Skipped (not in config)")
+                logger.info("  %s: Skipped (not in config)", col)
             continue
 
         series = factor_df[col].dropna()
         if len(series) < 60:
             if verbose:
-                print(f"  {col}: Skipped (insufficient data)")
+                logger.info("  %s: Skipped (insufficient data)", col)
             continue
 
         factor_config = config[col]
@@ -286,10 +280,10 @@ def apply_transforms(
             if flip:
                 fuel = 100 - fuel
                 if verbose:
-                    print(f"  {col}: Percentile({window // 12}Y) → Flipped (low=high risk)")
+                    logger.info("  %s: Percentile(%dY) → Flipped (low=high risk)", col, window // 12)
             else:
                 if verbose:
-                    print(f"  {col}: Percentile({window // 12}Y)")
+                    logger.info("  %s: Percentile(%dY)", col, window // 12)
 
         elif transform_type == 'zscore':
             zscore = compute_rolling_zscore(series, window=window)
@@ -297,31 +291,31 @@ def apply_transforms(
             if flip:
                 fuel = 100 - fuel
                 if verbose:
-                    print(f"  {col}: Z-score({window // 12}Y) → Flipped (low=high risk)")
+                    logger.info("  %s: Z-score(%dY) → Flipped (low=high risk)", col, window // 12)
             else:
                 if verbose:
                     fuel_range = f"{fuel.dropna().min():.1f}-{fuel.dropna().max():.1f}"
-                    print(f"  {col}: Z-score({window // 12}Y) → Fuel (range: {fuel_range})")
+                    logger.info("  %s: Z-score(%dY) → Fuel (range: %s)", col, window // 12, fuel_range)
 
         elif transform_type == 'ushape':
             fuel = compute_ushape_transform(series, window=window)
             if verbose:
-                print(f"  {col}: U-shape({window // 12}Y) → |Pctl-50|*2 (bidirectional)")
+                logger.info("  %s: U-shape(%dY) → |Pctl-50|*2 (bidirectional)", col, window // 12)
 
         elif transform_type == 'credit_gap':
             fuel = compute_credit_gap(series, window=window)
             if verbose:
-                print(f"  {col}: Credit Gap({window // 12}Y) → filters trend, cyclical deviation only")
+                logger.info("  %s: Credit Gap(%dY) → filters trend, cyclical deviation only", col, window // 12)
 
         else:
             if verbose:
-                print(f"  {col}: Unknown transform type '{transform_type}', skipped")
+                logger.warning("  %s: Unknown transform type '%s', skipped", col, transform_type)
             continue
 
         result[f'{col}_fuel'] = fuel
 
         if verbose:
-            print(f"       Range: {fuel.dropna().min():.1f}-{fuel.dropna().max():.1f}")
+            logger.info("       Range: %.1f-%.1f", fuel.dropna().min(), fuel.dropna().max())
 
     return result
 

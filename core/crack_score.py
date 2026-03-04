@@ -21,15 +21,13 @@ Usage:
     history = crack.compute_history('2020-01-01', '2024-12-31')
 """
 
-import os
-import sys
+import logging
 from typing import Dict, Optional
 
 import pandas as pd
 import numpy as np
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+logger = logging.getLogger(__name__)
 
 from config import CRACK_CONFIG
 

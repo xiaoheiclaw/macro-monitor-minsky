@@ -24,18 +24,14 @@ Usage:
     history = fuel.compute_history('2020-01-01', '2024-12-31')
 """
 
-import os
-import sys
+import logging
 from typing import Dict, Optional
 from datetime import datetime
 
 import pandas as pd
 import numpy as np
 
-# Ensure parent directory is in path for relative imports
-_parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _parent_dir not in sys.path:
-    sys.path.insert(0, _parent_dir)
+logger = logging.getLogger(__name__)
 
 from config import (
     FUEL_WEIGHTS_IC,

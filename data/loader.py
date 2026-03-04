@@ -228,23 +228,22 @@ class DataLoader:
         if 'trend_factors' in self._cache:
             return self._cache['trend_factors']
 
-        # Trend data file mapping (from trend/trend_score/config.py)
+        # Trend data file mapping (v2.0 - aligned with trend/trend_score/config.py)
         TREND_DATA_FILES = {
-            # Module A: Volatility
-            'VIX': 'a_vix.csv',
-            'VIX_TERM': 'a_vix_term.csv',
-            'SKEW': 'a_skew.csv',
-            'MOVE': 'a_move.csv',
-            # Module B: Funding/Liquidity
-            'EFFR_SOFR': 'b_effr_sofr_spread.csv',
-            'GCF_REPO': 'b_gcf_repo_rate.csv',
-            # Module C: Credit
-            'HY_SPREAD': 'c_hy_spread.csv',
-            'IG_SPREAD': 'c_ig_spread.csv',
-            # Module D: Flow
-            'HYG_FLOW': 'd_hyg_flow.csv',
-            'LQD_FLOW': 'd_lqd_flow.csv',
-            'TLT_FLOW': 'd_tlt_flow.csv',
+            # Module A: Volatility Regime
+            'A1_VTS': 'a1_vts.csv',
+            'A2_SKEW': 'a2_skew.csv',
+            'A3_MOVE': 'a3_move.csv',
+            # Module B: Funding / Liquidity
+            'B1_Funding': 'b1_funding.csv',
+            'B2_GCF_IORB': 'b2_gcf_iorb.csv',
+            # Module C: Credit Compensation
+            'C1_HY_Spread': 'c1_hy_spread.csv',
+            'C2_IG_Spread': 'c2_ig_spread.csv',
+            # Module D: Flow Confirmation
+            'D1_HYG_Flow': 'd1_hyg_flow.csv',
+            'D2_LQD_Flow': 'd2_lqd_flow.csv',
+            'D3_TLT_Flow': 'd3_tlt_flow.csv',
         }
 
         factors = {}

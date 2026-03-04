@@ -31,7 +31,7 @@ D. Flow Confirmation (资金流确认)
 """
 
 import os
-import sys
+import logging
 import pandas as pd
 import numpy as np
 import requests
@@ -39,11 +39,10 @@ from bs4 import BeautifulSoup
 import re
 from datetime import datetime
 
-# Add project root to path
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, PROJECT_ROOT)
-
 from trend.V9_LQI_FACTORS.lqi_data_loader import LQIDataLoader
+from utils.transforms import compute_rolling_percentile, compute_rolling_zscore
+
+logger = logging.getLogger(__name__)
 
 OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -51,24 +50,6 @@ OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 # =============================================================================
 # 通用工具函数
 # =============================================================================
-
-def compute_percentile(series: pd.Series, window: int, min_periods: int = None) -> pd.Series:
-    """计算滚动历史分位数 (0-100)"""
-    if min_periods is None:
-        min_periods = window // 2
-    return series.rolling(window, min_periods=min_periods).apply(
-        lambda x: (x.iloc[:-1] < x.iloc[-1]).sum() / len(x.iloc[:-1]) * 100 if len(x) > 1 else 50
-    )
-
-
-def compute_zscore(series: pd.Series, window: int, min_periods: int = None) -> pd.Series:
-    """计算滚动 Z-score"""
-    if min_periods is None:
-        min_periods = window // 2
-    rolling_mean = series.rolling(window, min_periods=min_periods).mean()
-    rolling_std = series.rolling(window, min_periods=min_periods).std()
-    return (series - rolling_mean) / rolling_std
-
 
 def compute_all_zscores(series: pd.Series, prefix: str) -> dict:
     """计算所有时间窗口的 Z-score 及其变化
@@ -83,9 +64,9 @@ def compute_all_zscores(series: pd.Series, prefix: str) -> dict:
     results = {}
 
     # Z-scores at different windows
-    zscore_3m = compute_zscore(series, 63, 32)
-    zscore_1y = compute_zscore(series, 252)
-    zscore_3y = compute_zscore(series, 756, 378)
+    zscore_3m = compute_rolling_zscore(series, 63, 32)
+    zscore_1y = compute_rolling_zscore(series, 252)
+    zscore_3y = compute_rolling_zscore(series, 756, 378)
 
     results[f'{prefix}_zscore_3m'] = zscore_3m
     results[f'{prefix}_zscore_1y'] = zscore_1y
@@ -138,8 +119,8 @@ def cache_a1_vts():
     })
 
     # Percentile transforms (日频: 252天=1年, 1260天=5年)
-    df['vts_pctl_1y'] = compute_percentile(vts, 252)
-    df['vts_pctl_5y'] = compute_percentile(vts, 1260, 504)
+    df['vts_pctl_1y'] = compute_rolling_percentile(vts, 252)
+    df['vts_pctl_5y'] = compute_rolling_percentile(vts, 1260, 504)
 
     # Z-score transforms (3m, 1y, 3y windows + deltas)
     zscore_cols = compute_all_zscores(vts, 'vts')
@@ -180,8 +161,8 @@ def cache_a2_skew():
         'skew_raw': skew,
     })
 
-    df['skew_pctl_1y'] = compute_percentile(skew, 252)
-    df['skew_pctl_5y'] = compute_percentile(skew, 1260, 504)
+    df['skew_pctl_1y'] = compute_rolling_percentile(skew, 252)
+    df['skew_pctl_5y'] = compute_rolling_percentile(skew, 1260, 504)
 
     # Z-score transforms (3m, 1y, 3y windows + deltas)
     zscore_cols = compute_all_zscores(skew, 'skew')
@@ -224,8 +205,8 @@ def cache_a3_move():
         'move_raw': move,
     })
 
-    df['move_pctl_1y'] = compute_percentile(move, 252)
-    df['move_pctl_5y'] = compute_percentile(move, 1260, 504)
+    df['move_pctl_1y'] = compute_rolling_percentile(move, 252)
+    df['move_pctl_5y'] = compute_rolling_percentile(move, 1260, 504)
 
     # Z-score transforms (3m, 1y, 3y windows + deltas)
     zscore_cols = compute_all_zscores(move, 'move')
@@ -269,8 +250,8 @@ def cache_b1_funding():
     try:
         ted = loader.load_ted_spread().dropna()
         results['ted_raw'] = ted
-        results['ted_pctl_1y'] = compute_percentile(ted, 252)
-        results['ted_pctl_5y'] = compute_percentile(ted, 1260, 504)
+        results['ted_pctl_1y'] = compute_rolling_percentile(ted, 252)
+        results['ted_pctl_5y'] = compute_rolling_percentile(ted, 1260, 504)
 
         # Z-score transforms for TED
         ted_zscores = compute_all_zscores(ted, 'ted')
@@ -292,8 +273,8 @@ def cache_b1_funding():
         results['effr'] = effr
         results['sofr'] = sofr
         results['effr_sofr_raw'] = spread
-        results['effr_sofr_pctl_1y'] = compute_percentile(spread, 252)
-        results['effr_sofr_pctl_5y'] = compute_percentile(spread, 1260, 504)
+        results['effr_sofr_pctl_1y'] = compute_rolling_percentile(spread, 252)
+        results['effr_sofr_pctl_5y'] = compute_rolling_percentile(spread, 1260, 504)
 
         # Z-score transforms for EFFR-SOFR
         effr_sofr_zscores = compute_all_zscores(spread, 'effr_sofr')
@@ -392,8 +373,8 @@ def cache_b2_gcf_iorb():
             'gcf_iorb_raw': spread,
         })
 
-        df['gcf_iorb_pctl_1y'] = compute_percentile(spread, 252)
-        df['gcf_iorb_pctl_5y'] = compute_percentile(spread, 1260, 504)
+        df['gcf_iorb_pctl_1y'] = compute_rolling_percentile(spread, 252)
+        df['gcf_iorb_pctl_5y'] = compute_rolling_percentile(spread, 1260, 504)
 
         # Z-score transforms (3m, 1y, 3y windows + deltas)
         zscore_cols = compute_all_zscores(spread, 'gcf_iorb')
@@ -451,8 +432,8 @@ def cache_c1_hy_spread():
     })
 
     # Percentile transforms
-    df['hy_spread_pctl_1y'] = compute_percentile(hy_oas, 252)
-    df['hy_spread_pctl_5y'] = compute_percentile(hy_oas, 1260, 504)
+    df['hy_spread_pctl_1y'] = compute_rolling_percentile(hy_oas, 252)
+    df['hy_spread_pctl_5y'] = compute_rolling_percentile(hy_oas, 1260, 504)
 
     # Z-score transforms (3m, 1y, 3y windows + deltas)
     zscore_cols = compute_all_zscores(hy_oas, 'hy_spread')
@@ -499,8 +480,8 @@ def cache_c2_ig_spread():
     })
 
     # Percentile transforms
-    df['ig_spread_pctl_1y'] = compute_percentile(ig_oas, 252)
-    df['ig_spread_pctl_5y'] = compute_percentile(ig_oas, 1260, 504)
+    df['ig_spread_pctl_1y'] = compute_rolling_percentile(ig_oas, 252)
+    df['ig_spread_pctl_5y'] = compute_rolling_percentile(ig_oas, 1260, 504)
 
     # Z-score transforms (3m, 1y, 3y windows + deltas)
     zscore_cols = compute_all_zscores(ig_oas, 'ig_spread')
@@ -663,8 +644,8 @@ def update_etf_shares(ticker: str) -> bool:
     existing[f'{prefix}_flow_3m'] = flow_63d
 
     # Percentile transforms
-    existing[f'{prefix}_flow_pctl_1y'] = compute_percentile(flow_signal, 252)
-    existing[f'{prefix}_flow_pctl_5y'] = compute_percentile(flow_signal, 1260, 504)
+    existing[f'{prefix}_flow_pctl_1y'] = compute_rolling_percentile(flow_signal, 252)
+    existing[f'{prefix}_flow_pctl_5y'] = compute_rolling_percentile(flow_signal, 1260, 504)
 
     # Z-score transforms
     zscore_cols = compute_all_zscores(flow_signal, f'{prefix}_flow')
@@ -728,8 +709,8 @@ def cache_d1_hyg_flow():
     })
 
     # Percentile transforms
-    df['hyg_flow_pctl_1y'] = compute_percentile(flow_signal, 252)
-    df['hyg_flow_pctl_5y'] = compute_percentile(flow_signal, 1260, 504)
+    df['hyg_flow_pctl_1y'] = compute_rolling_percentile(flow_signal, 252)
+    df['hyg_flow_pctl_5y'] = compute_rolling_percentile(flow_signal, 1260, 504)
 
     # Z-score transforms (3m, 1y, 3y windows + deltas)
     zscore_cols = compute_all_zscores(flow_signal, 'hyg_flow')
@@ -782,8 +763,8 @@ def cache_d2_lqd_flow():
     })
 
     # Percentile transforms
-    df['lqd_flow_pctl_1y'] = compute_percentile(flow_signal, 252)
-    df['lqd_flow_pctl_5y'] = compute_percentile(flow_signal, 1260, 504)
+    df['lqd_flow_pctl_1y'] = compute_rolling_percentile(flow_signal, 252)
+    df['lqd_flow_pctl_5y'] = compute_rolling_percentile(flow_signal, 1260, 504)
 
     # Z-score transforms (3m, 1y, 3y windows + deltas)
     zscore_cols = compute_all_zscores(flow_signal, 'lqd_flow')
@@ -836,8 +817,8 @@ def cache_d3_tlt_flow():
     })
 
     # Percentile transforms
-    df['tlt_flow_pctl_1y'] = compute_percentile(flow_signal, 252)
-    df['tlt_flow_pctl_5y'] = compute_percentile(flow_signal, 1260, 504)
+    df['tlt_flow_pctl_1y'] = compute_rolling_percentile(flow_signal, 252)
+    df['tlt_flow_pctl_5y'] = compute_rolling_percentile(flow_signal, 1260, 504)
 
     # Z-score transforms (3m, 1y, 3y windows + deltas)
     zscore_cols = compute_all_zscores(flow_signal, 'tlt_flow')
