@@ -987,48 +987,25 @@ def main():
         # 时间范围
         st.subheader("Time Range")
 
-        # 初始化 session state
-        if 'tr_start' not in st.session_state:
-            st.session_state['tr_start'] = datetime(2015, 1, 1).date()
-        if 'tr_end' not in st.session_state:
-            st.session_state['tr_end'] = datetime.now().date()
+        TIME_RANGES = {
+            "1 Year": 365,
+            "3 Years": 365 * 3,
+            "5 Years": 365 * 5,
+            "10 Years": 365 * 10,
+            "All": None,
+        }
+        selected_range = st.selectbox(
+            "Select Range",
+            options=list(TIME_RANGES.keys()),
+            index=1,  # default 3Y
+        )
 
-        # 快捷按钮回调
-        def set_range(days_back=None):
-            if days_back:
-                st.session_state['tr_start'] = (datetime.now() - timedelta(days=days_back)).date()
-            else:
-                st.session_state['tr_start'] = datetime(2000, 1, 1).date()
-            st.session_state['tr_end'] = datetime.now().date()
-
-        quick_col1, quick_col2, quick_col3, quick_col4 = st.columns(4)
-        quick_col1.button("1Y", use_container_width=True, on_click=set_range, args=(365,))
-        quick_col2.button("3Y", use_container_width=True, on_click=set_range, args=(365*3,))
-        quick_col3.button("5Y", use_container_width=True, on_click=set_range, args=(365*5,))
-        quick_col4.button("All", use_container_width=True, on_click=set_range, args=(None,))
-
-        # 日期选择器
-        date_col1, date_col2 = st.columns(2)
-        with date_col1:
-            history_start = st.date_input(
-                "Start Date",
-                value=st.session_state['tr_start'],
-                min_value=datetime(2000, 1, 1).date(),
-                max_value=datetime.now().date(),
-                key="tr_start"
-            )
-        with date_col2:
-            history_end = st.date_input(
-                "End Date",
-                value=st.session_state['tr_end'],
-                min_value=datetime(2000, 1, 1).date(),
-                max_value=datetime.now().date(),
-                key="tr_end"
-            )
-
-        # 转换为 datetime 对象
-        history_start = datetime.combine(history_start, datetime.min.time())
-        history_end = datetime.combine(history_end, datetime.min.time())
+        days_back = TIME_RANGES[selected_range]
+        if days_back:
+            history_start = datetime.now() - timedelta(days=days_back)
+        else:
+            history_start = datetime(2000, 1, 1)
+        history_end = datetime.now()
 
         st.divider()
 
