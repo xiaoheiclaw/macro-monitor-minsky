@@ -984,41 +984,46 @@ def main():
         use_lagged = st.checkbox("Use Lagged Data", value=True,
                                   help="Use release-lag adjusted data for Structure/Crack layers")
 
-        # 时间范围滑块
+        # 时间范围
         st.subheader("Time Range")
 
-        # 快捷按钮
+        # 初始化 session state
+        if 'tr_start' not in st.session_state:
+            st.session_state['tr_start'] = datetime(2015, 1, 1).date()
+        if 'tr_end' not in st.session_state:
+            st.session_state['tr_end'] = datetime.now().date()
+
+        # 快捷按钮回调
+        def set_range(days_back=None):
+            if days_back:
+                st.session_state['tr_start'] = (datetime.now() - timedelta(days=days_back)).date()
+            else:
+                st.session_state['tr_start'] = datetime(2000, 1, 1).date()
+            st.session_state['tr_end'] = datetime.now().date()
+
         quick_col1, quick_col2, quick_col3, quick_col4 = st.columns(4)
-        if quick_col1.button("1Y", use_container_width=True):
-            st.session_state['history_start'] = datetime.now() - timedelta(days=365)
-        if quick_col2.button("3Y", use_container_width=True):
-            st.session_state['history_start'] = datetime.now() - timedelta(days=365*3)
-        if quick_col3.button("5Y", use_container_width=True):
-            st.session_state['history_start'] = datetime.now() - timedelta(days=365*5)
-        if quick_col4.button("All", use_container_width=True):
-            st.session_state['history_start'] = datetime(2000, 1, 1)
+        quick_col1.button("1Y", use_container_width=True, on_click=set_range, args=(365,))
+        quick_col2.button("3Y", use_container_width=True, on_click=set_range, args=(365*3,))
+        quick_col3.button("5Y", use_container_width=True, on_click=set_range, args=(365*5,))
+        quick_col4.button("All", use_container_width=True, on_click=set_range, args=(None,))
 
-        # 获取默认值
-        default_start = st.session_state.get('history_start', datetime(2015, 1, 1))
-        default_end = datetime.now()
-
-        # 日期选择器（替代slider，更可靠）
+        # 日期选择器
         date_col1, date_col2 = st.columns(2)
         with date_col1:
             history_start = st.date_input(
                 "Start Date",
-                value=default_start,
-                min_value=datetime(2000, 1, 1),
-                max_value=datetime.now(),
-                key="history_start_input"
+                value=st.session_state['tr_start'],
+                min_value=datetime(2000, 1, 1).date(),
+                max_value=datetime.now().date(),
+                key="tr_start"
             )
         with date_col2:
             history_end = st.date_input(
                 "End Date",
-                value=default_end,
-                min_value=datetime(2000, 1, 1),
-                max_value=datetime.now(),
-                key="history_end_input"
+                value=st.session_state['tr_end'],
+                min_value=datetime(2000, 1, 1).date(),
+                max_value=datetime.now().date(),
+                key="tr_end"
             )
 
         # 转换为 datetime 对象
